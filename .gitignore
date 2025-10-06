@@ -1,4 +1,7 @@
-.vscode
+.vscode/
 var/
 log/
 .env
+node_modules/
+dist/
+.venv/
