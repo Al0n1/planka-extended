@@ -1,60 +1,61 @@
-# Scripts для управления Planka
+# Scripts для управления Planka на Ubuntu Server
 
-Этот набор скриптов упрощает работу с Planka в Docker окружении.
+Этот набор скриптов упрощает работу с Planka в Docker окружении на Ubuntu Server.
 
 ## Доступные скрипты
 
-### 🔄 backup-database.ps1
+### 🔄 backup-database.sh
 
 Создает резервную копию базы данных PostgreSQL.
 
 **Использование:**
-```powershell
-.\scripts\backup-database.ps1
+```bash
+./scripts/backup-database.sh
 ```
 
 **Что делает:**
 - Создает дамп базы данных PostgreSQL
+- Сжимает бэкап с помощью gzip
 - Сохраняет в директорию `./backups/`
 - Показывает размер и информацию о бэкапе
 - Отображает список всех доступных бэкапов
 
 **Результат:**
-- Файл: `./backups/planka_backup_YYYYMMDD_HHMMSS.sql`
+- Файл: `./backups/planka_backup_YYYYMMDD_HHMMSS.sql.gz`
 
 ---
 
-### ♻️ restore-database.ps1
+### ♻️ restore-database.sh
 
 Восстанавливает базу данных из резервной копии.
 
 **Использование:**
-```powershell
+```bash
 # Показать список доступных бэкапов
-.\scripts\restore-database.ps1
+./scripts/restore-database.sh
 
 # Восстановить из конкретного файла
-.\scripts\restore-database.ps1 .\backups\planka_backup_20251006_120000.sql
+./scripts/restore-database.sh ./backups/planka_backup_20251006_120000.sql.gz
 ```
 
 **Что делает:**
 - Останавливает сервер приложения
 - Удаляет существующую базу данных
 - Создает новую базу данных
-- Восстанавливает данные из бэкапа
+- Восстанавливает данные из бэкапа (поддерживает .gz)
 - Запускает приложение
 
 **⚠️ ВНИМАНИЕ:** Это действие удалит все текущие данные!
 
 ---
 
-### 📊 check-status.ps1
+### 📊 check-status.sh
 
 Проверяет статус Docker контейнеров Planka.
 
 **Использование:**
-```powershell
-.\scripts\check-status.ps1
+```bash
+./scripts/check-status.sh
 ```
 
 **Что показывает:**
@@ -66,22 +67,22 @@
 
 ---
 
-### 🔍 view-database.ps1
+### 🔍 view-database.sh
 
 Просматривает структуру и содержимое базы данных.
 
 **Использование:**
-```powershell
+```bash
 # Показать список всех таблиц
-.\scripts\view-database.ps1
+./scripts/view-database.sh
 
 # Показать структуру конкретной таблицы
-.\scripts\view-database.ps1 custom_field
+./scripts/view-database.sh custom_field
 
 # Другие примеры
-.\scripts\view-database.ps1 custom_field_value
-.\scripts\view-database.ps1 card
-.\scripts\view-database.ps1 board
+./scripts/view-database.sh custom_field_value
+./scripts/view-database.sh card
+./scripts/view-database.sh board
 ```
 
 **Что показывает:**
@@ -96,56 +97,65 @@
 
 ### 📦 Перед обновлением системы
 
-```powershell
-# 1. Проверьте статус
-.\scripts\check-status.ps1
+```bash
+# 1. Подключитесь к серверу
+ssh user@your-ubuntu-server
+cd /path/to/planka
 
-# 2. Создайте бэкап
-.\scripts\backup-database.ps1
+# 2. Проверьте статус
+./scripts/check-status.sh
 
-# 3. Выполните обновление
+# 3. Создайте бэкап
+./scripts/backup-database.sh
+
+# 4. Выполните обновление
 docker-compose down
 docker-compose up --build -d
 
-# 4. Проверьте статус после обновления
-.\scripts\check-status.ps1
+# 5. Проверьте статус после обновления
+./scripts/check-status.sh
 ```
 
 ### 🔧 При разработке и тестировании
 
-```powershell
+```bash
 # 1. Создайте бэкап текущего состояния
-.\scripts\backup-database.ps1
+./scripts/backup-database.sh
 
 # 2. Выполните изменения и тестирование
 # ... ваши изменения ...
 
 # 3. Если что-то пошло не так - откатитесь
-.\scripts\restore-database.ps1 .\backups\planka_backup_YYYYMMDD_HHMMSS.sql
+./scripts/restore-database.sh ./backups/planka_backup_YYYYMMDD_HHMMSS.sql.gz
 
 # 4. Проверьте структуру БД
-.\scripts\view-database.ps1 custom_field
+./scripts/view-database.sh custom_field
 ```
 
 ### 🚀 Миграция между серверами
 
-```powershell
+```bash
 # На старом сервере:
-.\scripts\backup-database.ps1
-# Скопируйте файл из ./backups/ на новый сервер
+./scripts/backup-database.sh
+# Скачайте файл из ./backups/ на локальную машину
+
+# Загрузите на новый сервер:
+scp backups/planka_backup_20251006_120000.sql.gz user@new-server:/path/to/planka/backups/
 
 # На новом сервере:
-.\scripts\restore-database.ps1 .\backups\planka_backup_20251006_120000.sql
+ssh user@new-server
+cd /path/to/planka
+./scripts/restore-database.sh ./backups/planka_backup_20251006_120000.sql.gz
 ```
 
 ### 🐛 Отладка проблем
 
-```powershell
+```bash
 # 1. Проверьте статус системы
-.\scripts\check-status.ps1
+./scripts/check-status.sh
 
 # 2. Посмотрите структуру проблемной таблицы
-.\scripts\view-database.ps1 custom_field
+./scripts/view-database.sh custom_field
 
 # 3. Проверьте логи в реальном времени
 docker-compose logs -f server
@@ -155,10 +165,21 @@ docker-compose logs -f server
 
 ## Требования
 
-- **Windows PowerShell** 5.1 или выше
-- **Docker Desktop** установлен и запущен
-- **docker-compose** доступен в PATH
+- **Ubuntu Server** 20.04 LTS или выше
+- **Bash** 4.0 или выше
+- **Docker** установлен и запущен
+- **docker-compose** доступен
 - Вы должны находиться в директории с `docker-compose.yml`
+
+---
+
+## Установка прав на выполнение
+
+После клонирования репозитория дайте права на выполнение всем скриптам:
+
+```bash
+chmod +x scripts/*.sh
+```
 
 ---
 

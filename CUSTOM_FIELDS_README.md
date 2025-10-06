@@ -22,11 +22,20 @@
 
 ## 🚀 Быстрый старт
 
-### 1. Создайте резервную копию
+### 1. Подключитесь к Ubuntu Server и создайте резервную копию
 
-```powershell
-cd planka
-.\scripts\backup-database.ps1
+```bash
+# Подключитесь к вашему серверу
+ssh user@your-ubuntu-server
+
+# Перейдите в директорию проекта
+cd /path/to/planka-extended/planka
+
+# Дайте права на выполнение скриптам
+chmod +x scripts/*.sh
+
+# Создайте резервную копию
+./scripts/backup-database.sh
 ```
 
 ### 2. Изучите документацию
@@ -113,11 +122,14 @@ client/src/
 
 ## 🔧 Требования
 
-- Docker Desktop
-- PowerShell 5.1+
-- Git
-- Node.js (для разработки)
-- PostgreSQL (в Docker)
+- **Ubuntu Server** 20.04 LTS или новее
+- **Docker** 20.10+
+- **Docker Compose** 1.29+
+- **Bash** 4.0+
+- **Git**
+- **Node.js** (для разработки frontend)
+- **PostgreSQL** (в Docker контейнере)
+- **SSH** доступ к серверу
 
 ## 📝 Структура базы данных
 
@@ -161,17 +173,21 @@ CREATE TABLE custom_field (
 
 Быстрый откат:
 
-```powershell
-# 1. Остановить новую версию
+```bash
+# 1. Подключиться к серверу
+ssh user@your-ubuntu-server
+cd /path/to/planka-extended/planka
+
+# 2. Остановить новую версию
 docker-compose down
 
-# 2. Вернуться к предыдущей версии
+# 3. Вернуться к предыдущей версии
 git checkout <previous-version-tag>
 
-# 3. Восстановить базу
-.\scripts\restore-database.ps1 .\backups\planka_backup_YYYYMMDD_HHMMSS.sql
+# 4. Восстановить базу
+./scripts/restore-database.sh ./backups/planka_backup_YYYYMMDD_HHMMSS.sql.gz
 
-# 4. Запустить
+# 5. Запустить
 docker-compose up -d
 ```
 

@@ -4,11 +4,13 @@
 
 **Цель:** Добавить поддержку типизированных кастомных полей в Planka, включая тип "checklist"
 
-**Окружение:** Docker (docker-compose)
+**Окружение:** Docker (docker-compose) на Ubuntu Server
 
 **База данных:** PostgreSQL в Docker контейнере
 
 **Время реализации:** ~2-3 дня
+
+**Важно:** Все команды предназначены для выполнения на Ubuntu Server через SSH
 
 ---
 
@@ -44,7 +46,7 @@ echo "Создание резервной копии базы данных..."
 echo "Файл: ${BACKUP_DIR}/${BACKUP_FILE}"
 
 # Создаем дамп базы данных
-docker exec ${POSTGRES_CONTAINER} pg_dump -U postgres planka > "${BACKUP_DIR}/${BACKUP_FILE}"
+docker exec "$POSTGRES_CONTAINER" pg_dump -U postgres planka > "$BACKUP_DIR/$BACKUP_FILE"
 
 if [ $? -eq 0 ]; then
     echo "✓ Резервная копия успешно создана: ${BACKUP_DIR}/${BACKUP_FILE}"
@@ -61,26 +63,27 @@ else
 fi
 ```
 
-**Файл для Windows PowerShell:** `scripts/backup-database.ps1`
+**Файл:** `scripts/backup-database.sh`
 
-```powershell
-# Скрипт для создания резервной копии базы данных PostgreSQL (Windows)
+```bash
+#!/bin/bash
+# Скрипт для создания резервной копии базы данных PostgreSQL (Ubuntu)
 
 # Настройки
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$backupDir = ".\backups"
-$backupFile = "planka_backup_$timestamp.sql"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_DIR="./backups"
+BACKUP_FILE="planka_backup_${TIMESTAMP}.sql"
 
 # Создаем директорию для бэкапов
-if (-not (Test-Path $backupDir)) {
-    New-Item -ItemType Directory -Path $backupDir | Out-Null
-}
+if [ ! -d "$BACKUP_DIR" ]; then
+    mkdir -p "$BACKUP_DIR"
+fi
 
 Write-Host "Создание резервной копии базы данных..."
 Write-Host "Файл: $backupDir\$backupFile"
 
 # Получаем имя контейнера PostgreSQL
-$postgresContainer = docker-compose ps -q db
+POSTGRES_CONTAINER=$(docker-compose ps -q db 2>/dev/null)
 
 if ([string]::IsNullOrEmpty($postgresContainer)) {
     Write-Host "Ошибка: PostgreSQL контейнер не найден" -ForegroundColor Red
@@ -162,20 +165,18 @@ else
 fi
 ```
 
-**Файл для Windows PowerShell:** `scripts/restore-database.ps1`
+**Файл:** `scripts/restore-database.sh`
 
-```powershell
-# Скрипт для восстановления базы данных (Windows)
+```bash
+#!/bin/bash
+# Скрипт для восстановления базы данных (Ubuntu)
 
-param(
-    [Parameter(Mandatory=$true)]
-    [string]$BackupFile
-)
+BACKUP_FILE="$1"
 
-if (-not (Test-Path $BackupFile)) {
-    Write-Host "Ошибка: Файл $BackupFile не найден" -ForegroundColor Red
+if [ ! -f "$BACKUP_FILE" ]; then
+    echo "Ошибка: Файл $BACKUP_FILE не найден"
     exit 1
-}
+fi
 
 $postgresContainer = docker-compose ps -q db
 
@@ -186,19 +187,24 @@ if ([string]::IsNullOrEmpty($postgresContainer)) {
 
 Write-Host "⚠️  ВНИМАНИЕ: Это удалит текущую базу данных и восстановит из бэкапа!" -ForegroundColor Yellow
 Write-Host "Файл бэкапа: $BackupFile"
-$confirm = Read-Host "Продолжить? (yes/no)"
+read -p "Продолжить? (yes/no): " confirm
 
-if ($confirm -ne "yes") {
-    Write-Host "Отменено"
+if [ "$confirm" != "yes" ]; then
+    echo "Отменено"
     exit 0
-}
+fi
 
 Write-Host "Останавливаем приложение..."
 docker-compose stop server
 
 Write-Host "Восстанавливаем базу данных..."
 
-Get-Content $BackupFile | docker exec -i $postgresContainer psql -U postgres -d planka
+# Проверяем, сжат файл или нет
+if [[ "$BACKUP_FILE" == *.gz ]]; then
+    gunzip -c "$BACKUP_FILE" | docker exec -i "$POSTGRES_CONTAINER" psql -U postgres -d planka
+else
+    cat "$BACKUP_FILE" | docker exec -i "$POSTGRES_CONTAINER" psql -U postgres -d planka
+fi
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✓ База данных успешно восстановлена" -ForegroundColor Green
@@ -212,14 +218,11 @@ if ($LASTEXITCODE -eq 0) {
 
 ### 0.2. Выполнить бэкап перед началом работ
 
-```powershell
-# Windows PowerShell
-cd d:\Работать\MY\planka-extended\planka
-.\scripts\backup-database.ps1
-
-# Или для Linux/Mac
-# chmod +x scripts/backup-database.sh
-# ./scripts/backup-database.sh
+```bash
+# Ubuntu Server (через SSH)
+cd /path/to/planka-extended/planka
+chmod +x scripts/backup-database.sh
+./scripts/backup-database.sh
 ```
 
 ### 0.3. Создать отдельную ветку для разработки
@@ -306,7 +309,7 @@ module.exports.CustomFieldTypes = {
 
 ### 1.4. Тестирование миграции
 
-```powershell
+```bash
 # Остановить контейнеры
 docker-compose down
 
@@ -317,7 +320,7 @@ docker-compose up --build -d
 docker-compose logs -f server
 
 # Проверить структуру таблицы
-docker exec -it planka_db_1 psql -U postgres -d planka -c "\d custom_field"
+./scripts/view-database.sh custom_field
 ```
 
 ---
@@ -1409,9 +1412,15 @@ None - fully backward compatible
 
 ### 8.3. Деплой в продакшн
 
-```powershell
+```bash
+# Подключитесь к Ubuntu Server через SSH
+ssh user@your-server
+
+# Перейдите в директорию проекта
+cd /path/to/planka-extended/planka
+
 # 1. Создать финальный бэкап продакшн базы
-.\scripts\backup-database.ps1
+./scripts/backup-database.sh
 
 # 2. Переключиться на production окружение
 git checkout master
@@ -1436,7 +1445,7 @@ docker-compose logs -f server
 
 ### 8.4. Мониторинг после деплоя
 
-```powershell
+```bash
 # Следить за логами первые 10-15 минут
 docker-compose logs -f
 
@@ -1445,6 +1454,9 @@ docker stats
 
 # Проверить статус контейнеров
 docker-compose ps
+
+# Или используйте наш скрипт
+./scripts/check-status.sh
 ```
 
 ---
@@ -1455,7 +1467,7 @@ docker-compose ps
 
 #### Вариант 1: Откат через Docker (если контейнеры еще запущены)
 
-```powershell
+```bash
 # 1. Остановить новую версию
 docker-compose down
 
@@ -1463,7 +1475,7 @@ docker-compose down
 git checkout <previous-version-tag>
 
 # 3. Восстановить базу данных
-.\scripts\restore-database.ps1 .\backups\planka_backup_YYYYMMDD_HHMMSS.sql
+./scripts/restore-database.sh ./backups/planka_backup_YYYYMMDD_HHMMSS.sql.gz
 
 # 4. Запустить старую версию
 docker-compose up -d
@@ -1471,9 +1483,9 @@ docker-compose up -d
 
 #### Вариант 2: Откат только базы данных (если миграция прошла, но есть проблемы)
 
-```powershell
+```bash
 # Восстановить базу из бэкапа
-.\scripts\restore-database.ps1 .\backups\planka_backup_YYYYMMDD_HHMMSS.sql
+./scripts/restore-database.sh ./backups/planka_backup_YYYYMMDD_HHMMSS.sql.gz
 ```
 
 #### Вариант 3: Откат миграции (если нужно удалить только новые колонки)
