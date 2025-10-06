@@ -1,0 +1,50 @@
+.wrapper {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.text {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #5e6c84;
+  margin-bottom: 0.5rem;
+}
+
+.list {
+  margin-bottom: 0.75rem !important;
+  padding: 0 !important;
+}
+
+.listItem {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.5rem 0.75rem !important;
+  background-color: #f4f5f7 !important;
+  border-radius: 3px !important;
+  margin-bottom: 0.5rem !important;
+
+  &:hover {
+    background-color: #ebecf0 !important;
+  }
+
+  &:last-child {
+    margin-bottom: 0 !important;
+  }
+}
+
+.optionText {
+  flex: 1;
+  font-size: 14px;
+  color: #172b4d;
+}
+
+.removeButton {
+  margin-left: 0.5rem !important;
+  padding: 0.5rem !important;
+}
+
+.input {
+  margin-top: 0.5rem;
+}
