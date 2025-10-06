@@ -10,7 +10,8 @@ NC='\033[0m' # No Color
 
 # Настройки
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_DIR="./backups"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKUP_DIR="$SCRIPT_DIR/../backups"
 BACKUP_FILE="planka_backup_${TIMESTAMP}.sql"
 
 # Создаем директорию для бэкапов
@@ -21,14 +22,24 @@ fi
 
 echo ""
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║          Резервное копирование базы данных Planka         ║${NC}"
+echo -e "${CYAN}║          Резервное копирование базы данных Planka          ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 echo -e "${YELLOW}Поиск контейнера PostgreSQL...${NC}"
 
-# Получаем имя контейнера PostgreSQL
-POSTGRES_CONTAINER=$(docker-compose ps -q db 2>/dev/null)
+# Ищем контейнер PostgreSQL по имени или образу
+POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:16-alpine" --format "{{.ID}}" | head -n 1)
+
+# Если не нашли по образу, попробуем по имени
+if [ -z "$POSTGRES_CONTAINER" ]; then
+    POSTGRES_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.ID}}" | head -n 1)
+fi
+
+# Если всё ещё не нашли, попробуем по имени planka-postgres
+if [ -z "$POSTGRES_CONTAINER" ]; then
+    POSTGRES_CONTAINER=$(docker ps --filter "name=planka-postgres" --format "{{.ID}}" | head -n 1)
+fi
 
 if [ -z "$POSTGRES_CONTAINER" ]; then
     echo ""
@@ -36,13 +47,18 @@ if [ -z "$POSTGRES_CONTAINER" ]; then
     echo ""
     echo -e "${YELLOW}Убедитесь что:${NC}"
     echo -e "${YELLOW}  1. Docker запущен${NC}"
-    echo -e "${YELLOW}  2. Вы находитесь в директории с docker-compose.yml${NC}"
-    echo -e "${YELLOW}  3. Контейнеры запущены (docker-compose up -d)${NC}"
+    echo -e "${YELLOW}  2. Контейнеры Planka запущены${NC}"
+    echo ""
+    echo -e "${CYAN}Доступные контейнеры:${NC}"
+    docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Names}}"
     echo ""
     exit 1
 fi
 
-echo -e "${GREEN}✓ Контейнер найден: $POSTGRES_CONTAINER${NC}"
+# Получаем имя контейнера для отображения
+CONTAINER_NAME=$(docker ps --filter "id=$POSTGRES_CONTAINER" --format "{{.Names}}")
+
+echo -e "${GREEN}✓ Контейнер найден: $CONTAINER_NAME ($POSTGRES_CONTAINER)${NC}"
 echo ""
 echo -e "${YELLOW}Создание резервной копии...${NC}"
 echo -e "${CYAN}Файл: $BACKUP_DIR/$BACKUP_FILE${NC}"

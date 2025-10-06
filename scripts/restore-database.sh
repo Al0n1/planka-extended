@@ -64,7 +64,19 @@ BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 
 # Получаем имя контейнера PostgreSQL
 echo -e "${YELLOW}Поиск контейнера PostgreSQL...${NC}"
-POSTGRES_CONTAINER=$(docker-compose ps -q db 2>/dev/null)
+
+# Ищем контейнер PostgreSQL по имени или образу
+POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:16-alpine" --format "{{.ID}}" | head -n 1)
+
+# Если не нашли по образу, попробуем по имени
+if [ -z "$POSTGRES_CONTAINER" ]; then
+    POSTGRES_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.ID}}" | head -n 1)
+fi
+
+# Если всё ещё не нашли, попробуем по имени planka-postgres
+if [ -z "$POSTGRES_CONTAINER" ]; then
+    POSTGRES_CONTAINER=$(docker ps --filter "name=planka-postgres" --format "{{.ID}}" | head -n 1)
+fi
 
 if [ -z "$POSTGRES_CONTAINER" ]; then
     echo ""
@@ -72,13 +84,18 @@ if [ -z "$POSTGRES_CONTAINER" ]; then
     echo ""
     echo -e "${YELLOW}Убедитесь что:${NC}"
     echo -e "${YELLOW}  1. Docker запущен${NC}"
-    echo -e "${YELLOW}  2. Вы находитесь в директории с docker-compose.yml${NC}"
-    echo -e "${YELLOW}  3. Контейнеры запущены (docker-compose up -d)${NC}"
+    echo -e "${YELLOW}  2. Контейнеры Planka запущены${NC}"
+    echo ""
+    echo -e "${CYAN}Доступные контейнеры:${NC}"
+    docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Names}}"
     echo ""
     exit 1
 fi
 
-echo -e "${GREEN}✓ Контейнер найден: $POSTGRES_CONTAINER${NC}"
+# Получаем имя контейнера для отображения
+CONTAINER_NAME=$(docker ps --filter "id=$POSTGRES_CONTAINER" --format "{{.Names}}")
+
+echo -e "${GREEN}✓ Контейнер найден: $CONTAINER_NAME ($POSTGRES_CONTAINER)${NC}"
 echo ""
 
 # Предупреждение
@@ -113,12 +130,22 @@ echo ""
 
 # Останавливаем сервер приложения
 echo -e "${CYAN}[1/5] Останавливаем сервер приложения...${NC}"
-docker-compose stop server >/dev/null 2>&1
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Сервер остановлен${NC}"
+# Ищем контейнер Planka (сервер)
+PLANKA_CONTAINER=$(docker ps --filter "ancestor=ghcr.io/plankanban/planka" --format "{{.ID}}" | head -n 1)
+if [ -z "$PLANKA_CONTAINER" ]; then
+    PLANKA_CONTAINER=$(docker ps --filter "name=planka" --format "{{.ID}}" | head -n 1)
+fi
+
+if [ -n "$PLANKA_CONTAINER" ]; then
+    docker stop "$PLANKA_CONTAINER" >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Сервер остановлен${NC}"
+    else
+        echo -e "${YELLOW}⚠ Предупреждение: Не удалось остановить сервер${NC}"
+    fi
 else
-    echo -e "${YELLOW}⚠ Предупреждение: Не удалось остановить сервер${NC}"
+    echo -e "${YELLOW}⚠ Сервер приложения не найден (возможно уже остановлен)${NC}"
 fi
 echo ""
 
@@ -170,13 +197,17 @@ echo ""
 
 # Запускаем приложение
 echo -e "${CYAN}[5/5] Запускаем приложение...${NC}"
-docker-compose up -d >/dev/null 2>&1
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Приложение запущено${NC}"
+if [ -n "$PLANKA_CONTAINER" ]; then
+    docker start "$PLANKA_CONTAINER" >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Приложение запущено${NC}"
+    else
+        echo -e "${YELLOW}⚠ Предупреждение: Проблема при запуске приложения${NC}"
+        echo -e "${YELLOW}Попробуйте запустить вручную: docker start $PLANKA_CONTAINER${NC}"
+    fi
 else
-    echo -e "${YELLOW}⚠ Предупреждение: Проблема при запуске приложения${NC}"
-    echo -e "${YELLOW}Попробуйте запустить вручную: docker-compose up -d${NC}"
+    echo -e "${YELLOW}⚠ Контейнер приложения не найден. Возможно нужно запустить через docker-compose.${NC}"
 fi
 echo ""
 
@@ -192,5 +223,6 @@ echo "  3. Проверьте что данные восстановлены"
 echo ""
 
 echo -e "${YELLOW}Для просмотра логов используйте:${NC}"
-echo "  docker-compose logs -f"
+echo "  docker logs -f <container_name>"
+echo "  или: docker logs -f $CONTAINER_NAME"
 echo ""
