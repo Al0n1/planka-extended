@@ -25,4 +25,9 @@ module.exports.bootstrap = async () => {
   //   // etc.
   // ]);
   // ```
+
+  // Start notification worker
+  const notificationWorker = require('../workers/notification-worker');
+  notificationWorker.start();
+  sails.log.info('[Bootstrap] Notification worker started');
 };

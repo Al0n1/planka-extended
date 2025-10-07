@@ -197,6 +197,35 @@ module.exports = {
     }
 
     if (Action.EXTERNAL_NOTIFIABLE_TYPES.includes(action.type)) {
+      // NEW: Use NotificationEventBus for async notification delivery
+      const NotificationEventBus = require('../../services/NotificationEventBus');
+      
+      try {
+        await NotificationEventBus.emitNotificationEvent(
+          action.type === Action.Types.CREATE_CARD ? 'card.created' : 
+          action.type === Action.Types.MOVE_CARD ? 'card.moved' : 
+          action.type,
+          {
+            actorId: values.user.id,
+            boardId: inputs.board.id,
+            projectId: inputs.project.id,
+            cardId: values.card.id,
+            payload: {
+              cardId: values.card.id,
+              cardName: values.card.name,
+              listName: sails.helpers.lists.makeName(inputs.list),
+              fromListName: action.data.fromList ? sails.helpers.lists.makeName(action.data.fromList) : null,
+              toListName: action.data.toList ? sails.helpers.lists.makeName(action.data.toList) : null,
+              actionData: action.data,
+            },
+          }
+        );
+      } catch (error) {
+        sails.log.error('[actions/create-one] Failed to emit notification event', error);
+        // Don't fail the main action if notification fails
+      }
+
+      // LEGACY: Keep backward compatibility with existing NotificationService
       const notificationServices = await NotificationService.qm.getByBoardId(inputs.board.id);
 
       if (notificationServices.length > 0) {
@@ -204,6 +233,9 @@ module.exports = {
           _.pick(notificationService, ['url', 'format']),
         );
 
+        // Deprecated: This will be removed in future versions
+        sails.log.warn('[actions/create-one] Using deprecated direct notification sending. Consider migrating to new notification channels.');
+        
         buildAndSendNotifications(
           services,
           inputs.board,

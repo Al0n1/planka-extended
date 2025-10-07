@@ -25,6 +25,10 @@ module.exports = {
   },
 
   async fn(inputs) {
+    // DEPRECATED: This helper is maintained for backward compatibility only
+    // New code should use NotificationEventBus and NotificationDeliveryService
+    sails.log.warn('[send-notifications] DEPRECATED: This helper will be removed in a future version. Use NotificationEventBus instead.');
+    
     return promisifyExecFile(`${sails.config.appPath}/.venv/bin/python3`, [
       `${sails.config.appPath}/utils/send_notifications.py`,
       JSON.stringify(inputs.services),
