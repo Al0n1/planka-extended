@@ -121,9 +121,6 @@ module.exports = {
     customFieldNotFound: {
       responseType: 'notFound',
     },
-    invalidContent: {
-      responseType: 'badRequest',
-    },
   },
 
   async fn(inputs) {
@@ -174,19 +171,6 @@ module.exports = {
       }
     } else if (customField.customFieldGroupId !== customFieldGroup.id) {
       throw Errors.CUSTOM_FIELD_NOT_FOUND;
-    }
-
-    // Валидируем content согласно типу поля
-    try {
-      await sails.helpers.customFieldValues.validateContent.with({
-        type: customField.type || 'text',
-        content: inputs.content,
-        config: customField.config,
-      });
-    } catch (error) {
-      throw {
-        invalidContent: error.message || 'Invalid content for field type',
-      };
     }
 
     const values = _.pick(inputs, ['content']);

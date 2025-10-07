@@ -37,15 +37,6 @@
  *                 maxLength: 128
  *                 description: Name/title of the custom field
  *                 example: Priority
- *               type:
- *                 type: string
- *                 enum: [text, checklist, dropdown, number, date, checkbox, url, email]
- *                 description: Type of the custom field
- *                 example: text
- *               config:
- *                 type: object
- *                 description: Additional configuration for field types (e.g., dropdown options)
- *                 example: {"options": ["High", "Medium", "Low"]}
  *               showOnFrontOfCard:
  *                 type: boolean
  *                 description: Whether to show the field on the front of cards
@@ -98,13 +89,6 @@ module.exports = {
       isNotEmptyString: true,
       maxLength: 128,
     },
-    type: {
-      type: 'string',
-      isIn: ['text', 'checklist', 'dropdown', 'number', 'date', 'checkbox', 'url', 'email'],
-    },
-    config: {
-      type: 'json',
-    },
     showOnFrontOfCard: {
       type: 'boolean',
     },
@@ -129,7 +113,7 @@ module.exports = {
     let { customField } = pathToProject;
     const { customFieldGroup, card, list, board, baseCustomFieldGroup, project } = pathToProject;
 
-    const values = _.pick(inputs, ['position', 'name', 'type', 'config', 'showOnFrontOfCard']);
+    const values = _.pick(inputs, ['position', 'name', 'showOnFrontOfCard']);
 
     if (customField.baseCustomFieldGroupId) {
       const isProjectManager = await sails.helpers.users.isProjectManager(

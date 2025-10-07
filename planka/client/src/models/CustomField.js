@@ -15,8 +15,6 @@ export default class extends BaseModel {
     id: attr(),
     position: attr(),
     name: attr(),
-    type: attr({ getDefault: () => 'text' }),
-    config: attr(),
     showOnFrontOfCard: attr(),
     baseCustomFieldGroupId: fk({
       to: 'BaseCustomFieldGroup',

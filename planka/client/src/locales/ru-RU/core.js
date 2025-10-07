@@ -344,19 +344,6 @@ export default {
       webhooks: null,
       withoutBaseGroup: 'Без основной группы',
       writeComment: 'Напишите комментарий...',
-      // Custom Field Types
-      text: 'Текст',
-      checklist: 'Чеклист',
-      dropdown: 'Выпадающий список',
-      number: 'Число',
-      date: 'Дата',
-      checkbox: 'Флажок',
-      email: 'Email',
-      fieldType: 'Тип поля',
-      selectFieldType: 'Выберите тип поля',
-      addItem: 'Добавить элемент',
-      options_title: 'Опции',
-      addOption: 'Добавить опцию...',
     },
 
     action: {

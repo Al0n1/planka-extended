@@ -22,7 +22,6 @@
  *         - customFieldGroupId
  *         - position
  *         - name
- *         - type
  *         - showOnFrontOfCard
  *         - createdAt
  *         - updatedAt
@@ -49,17 +48,6 @@
  *           type: string
  *           description: Name/title of the custom field
  *           example: Priority
- *         type:
- *           type: string
- *           enum: [text, checklist, dropdown, number, date, checkbox, url, email]
- *           default: text
- *           description: Type of the custom field
- *           example: text
- *         config:
- *           type: object
- *           nullable: true
- *           description: Additional configuration for field types (e.g., dropdown options)
- *           example: {"options": ["High", "Medium", "Low"]}
  *         showOnFrontOfCard:
  *           type: boolean
  *           default: false
@@ -92,15 +80,6 @@ module.exports = {
     name: {
       type: 'string',
       required: true,
-    },
-    type: {
-      type: 'string',
-      isIn: ['text', 'checklist', 'dropdown', 'number', 'date', 'checkbox', 'url', 'email'],
-      defaultsTo: 'text',
-    },
-    config: {
-      type: 'json',
-      columnType: 'jsonb',
     },
     showOnFrontOfCard: {
       type: 'boolean',

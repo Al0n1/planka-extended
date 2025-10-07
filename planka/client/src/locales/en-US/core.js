@@ -344,19 +344,6 @@ export default {
       webhooks: 'Webhooks',
       withoutBaseGroup: 'Without base group',
       writeComment: 'Write a comment...',
-      // Custom Field Types
-      text: 'Text',
-      checklist: 'Checklist',
-      dropdown: 'Dropdown',
-      number: 'Number',
-      date: 'Date',
-      checkbox: 'Checkbox',
-      email: 'Email',
-      fieldType: 'Field Type',
-      selectFieldType: 'Select field type',
-      addItem: 'Add item',
-      options_title: 'Options',
-      addOption: 'Add option...',
     },
 
     action: {

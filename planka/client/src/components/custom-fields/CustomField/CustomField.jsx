@@ -13,15 +13,7 @@ import entryActions from '../../../entry-actions';
 import { buildCustomFieldValueId } from '../../../models/CustomFieldValue';
 import { isListArchiveOrTrash } from '../../../utils/record-helpers';
 import { BoardMembershipRoles } from '../../../constants/Enums';
-import { CustomFieldTypes } from '../../../constants/CustomFieldTypes';
 import ValueField from './ValueField';
-import ChecklistField from './ChecklistField';
-import DropdownField from './DropdownField';
-import NumberField from './NumberField';
-import DateField from './DateField';
-import CheckboxField from './CheckboxField';
-import URLField from './URLField';
-import EmailField from './EmailField';
 
 import styles from './CustomField.module.scss';
 
@@ -87,92 +79,16 @@ const CustomField = React.memo(({ id, customFieldGroupId }) => {
     }, 1000);
   }, [customFieldValue, isCopied]);
 
-  const renderValueField = useCallback(() => {
-    const fieldType = customField.type || CustomFieldTypes.TEXT;
-    
-    switch (fieldType) {
-      case CustomFieldTypes.CHECKLIST:
-        return (
-          <ChecklistField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.DROPDOWN:
-        return (
-          <DropdownField
-            defaultValue={customFieldValue?.content}
-            config={customField.config}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.NUMBER:
-        return (
-          <NumberField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.DATE:
-        return (
-          <DateField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.CHECKBOX:
-        return (
-          <CheckboxField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.URL:
-        return (
-          <URLField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.EMAIL:
-        return (
-          <EmailField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted || !canEdit}
-            onUpdate={handleValueUpdate}
-          />
-        );
-        
-      case CustomFieldTypes.TEXT:
-      default:
-        return (
-          <ValueField
-            defaultValue={customFieldValue?.content}
-            disabled={!customField.isPersisted}
-            onUpdate={handleValueUpdate}
-          />
-        );
-    }
-  }, [customField, customFieldValue, canEdit, handleValueUpdate]);
-
   return (
     <div>
       <div className={styles.name}>{customField.name}</div>
       <div className={styles.valueWrapper}>
         {canEdit ? (
-          renderValueField()
+          <ValueField
+            defaultValue={customFieldValue && customFieldValue.content}
+            disabled={!customField.isPersisted}
+            onUpdate={handleValueUpdate}
+          />
         ) : (
           <div className={styles.value}>
             {customFieldValue ? customFieldValue.content : '\u00A0'}

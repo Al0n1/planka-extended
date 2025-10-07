@@ -7,12 +7,10 @@ import React, { useCallback, useEffect, useImperativeHandle } from 'react';
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { Radio, Dropdown } from 'semantic-ui-react';
+import { Radio } from 'semantic-ui-react';
 import { Input } from '../../../lib/custom-ui';
 
 import { useNestedRef } from '../../../hooks';
-import { CustomFieldTypes, CustomFieldTypeLabels, CustomFieldTypeIcons } from '../../../constants/CustomFieldTypes';
-import DropdownConfigEditor from './DropdownConfigEditor';
 
 import styles from './CustomFieldEditor.module.scss';
 
@@ -49,27 +47,6 @@ const CustomFieldEditor = React.forwardRef(({ data, onFieldChange }, ref) => {
         className={styles.fieldName}
         onChange={onFieldChange}
       />
-      <div className={styles.text}>{t('common.fieldType')}</div>
-      <Dropdown
-        fluid
-        selection
-        name="type"
-        value={data.type || CustomFieldTypes.TEXT}
-        options={Object.values(CustomFieldTypes).map((type) => ({
-          key: type,
-          value: type,
-          text: t(CustomFieldTypeLabels[type]),
-          icon: CustomFieldTypeIcons[type],
-        }))}
-        className={styles.field}
-        onChange={(e, { value }) => onFieldChange(e, { name: 'type', value })}
-      />
-      {data.type === CustomFieldTypes.DROPDOWN && (
-        <DropdownConfigEditor
-          config={data.config}
-          onChange={(config) => onFieldChange(null, { name: 'config', value: config })}
-        />
-      )}
       <Radio
         toggle
         name="showOnFrontOfCard"
