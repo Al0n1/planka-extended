@@ -124,6 +124,28 @@ module.exports = {
       list: inputs.list,
     });
 
+    // Emit user.assigned notification event
+    try {
+      await sails.services.notificationeventbus.emitNotificationEvent('user.assigned', {
+        actorId: inputs.actorUser.id,
+        boardId: inputs.board.id,
+        projectId: inputs.project.id,
+        cardId: values.card.id,
+        assignedUserId: values.user.id,
+        card: {
+          id: values.card.id,
+          name: values.card.name,
+        },
+        user: {
+          id: values.user.id,
+          name: values.user.name,
+          username: values.user.username,
+        },
+      });
+    } catch (err) {
+      sails.log.error('[card-memberships/create-one] Failed to emit user.assigned event:', err);
+    }
+
     return cardMembership;
   },
 };

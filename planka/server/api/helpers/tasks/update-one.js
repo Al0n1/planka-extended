@@ -152,6 +152,30 @@ module.exports = {
           board: inputs.board,
           list: inputs.list,
         });
+
+        // Emit task.completed notification event
+        if (task.isCompleted) {
+          try {
+            await sails.services.notificationeventbus.emitNotificationEvent('task.completed', {
+              actorId: inputs.actorUser.id,
+              boardId: inputs.board.id,
+              projectId: inputs.project.id,
+              cardId: inputs.card.id,
+              taskId: task.id,
+              card: {
+                id: inputs.card.id,
+                name: inputs.card.name,
+              },
+              task: {
+                id: task.id,
+                name: task.name,
+                isCompleted: task.isCompleted,
+              },
+            });
+          } catch (err) {
+            sails.log.error('[tasks/update-one] Failed to emit task.completed event:', err);
+          }
+        }
       }
     }
 

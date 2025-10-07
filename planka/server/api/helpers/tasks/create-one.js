@@ -119,6 +119,28 @@ module.exports = {
       user: inputs.actorUser,
     });
 
+    // Emit task.created notification event
+    try {
+      await sails.services.notificationeventbus.emitNotificationEvent('task.created', {
+        actorId: inputs.actorUser.id,
+        boardId: inputs.board.id,
+        projectId: inputs.project.id,
+        cardId: inputs.card.id,
+        taskId: task.id,
+        card: {
+          id: inputs.card.id,
+          name: inputs.card.name,
+        },
+        task: {
+          id: task.id,
+          name: task.name,
+          isCompleted: task.isCompleted,
+        },
+      });
+    } catch (err) {
+      sails.log.error('[tasks/create-one] Failed to emit task.created event:', err);
+    }
+
     return task;
   },
 };

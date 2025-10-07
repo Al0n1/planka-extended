@@ -99,6 +99,28 @@ module.exports = {
         board: inputs.board,
         list: inputs.list,
       });
+
+      // Emit user.unassigned notification event
+      try {
+        await sails.services.notificationeventbus.emitNotificationEvent('user.unassigned', {
+          actorId: inputs.actorUser.id,
+          boardId: inputs.board.id,
+          projectId: inputs.project.id,
+          cardId: inputs.card.id,
+          unassignedUserId: inputs.user.id,
+          card: {
+            id: inputs.card.id,
+            name: inputs.card.name,
+          },
+          user: {
+            id: inputs.user.id,
+            name: inputs.user.name,
+            username: inputs.user.username,
+          },
+        });
+      } catch (err) {
+        sails.log.error('[card-memberships/delete-one] Failed to emit user.unassigned event:', err);
+      }
     }
 
     return cardMembership;

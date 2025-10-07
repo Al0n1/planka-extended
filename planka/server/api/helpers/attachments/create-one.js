@@ -65,6 +65,28 @@ module.exports = {
       user: values.creatorUser,
     });
 
+    // Emit attachment.added notification event
+    try {
+      await sails.services.notificationeventbus.emitNotificationEvent('attachment.added', {
+        actorId: values.creatorUser.id,
+        boardId: inputs.board.id,
+        projectId: inputs.project.id,
+        cardId: values.card.id,
+        attachmentId: attachment.id,
+        card: {
+          id: values.card.id,
+          name: values.card.name,
+        },
+        attachment: {
+          id: attachment.id,
+          name: attachment.name,
+          type: attachment.type,
+        },
+      });
+    } catch (err) {
+      sails.log.error('[attachments/create-one] Failed to emit attachment.added event:', err);
+    }
+
     if (!values.card.coverAttachmentId) {
       if (attachment.type === Attachment.Types.FILE && attachment.data.image) {
         await sails.helpers.cards.updateOne.with({

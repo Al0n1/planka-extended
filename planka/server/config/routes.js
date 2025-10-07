@@ -190,6 +190,19 @@ module.exports.routes = {
   'POST /api/notification-services/:id/test': 'notification-services/test',
   'DELETE /api/notification-services/:id': 'notification-services/delete',
 
+  'GET /api/notification-channels': 'notification-channels/read-all',
+  'POST /api/notification-channels': 'notification-channels/create',
+  'GET /api/notification-channels/:id': 'notification-channels/show',
+  'PATCH /api/notification-channels/:id': 'notification-channels/update',
+  'DELETE /api/notification-channels/:id': 'notification-channels/delete',
+  'POST /api/notification-channels/:id/test': 'notification-channels/test',
+
+  'GET /api/notification-subscriptions': 'notification-subscriptions/read-all',
+  'POST /api/notification-subscriptions': 'notification-subscriptions/create',
+  'GET /api/notification-subscriptions/:id': 'notification-subscriptions/show',
+  'PATCH /api/notification-subscriptions/:id': 'notification-subscriptions/update',
+  'DELETE /api/notification-subscriptions/:id': 'notification-subscriptions/delete',
+
   'GET /preloaded-favicons/*': {
     fn: staticDirServer('/preloaded-favicons', () =>
       path.join(

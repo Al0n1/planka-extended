@@ -321,6 +321,31 @@ module.exports = {
             board: inputs.board,
             list: values.list,
           });
+
+          // Emit card.moved notification event
+          try {
+            await sails.services.notificationeventbus.emitNotificationEvent('card.moved', {
+              actorId: inputs.actorUser.id,
+              boardId: board.id,
+              projectId: project.id,
+              cardId: card.id,
+              card: {
+                id: card.id,
+                name: card.name,
+                position: card.position,
+              },
+              fromList: {
+                id: inputs.list.id,
+                name: inputs.list.name,
+              },
+              toList: {
+                id: values.list.id,
+                name: values.list.name,
+              },
+            });
+          } catch (err) {
+            sails.log.error('[cards/update-one] Failed to emit card.moved event:', err);
+          }
         }
       }
 
