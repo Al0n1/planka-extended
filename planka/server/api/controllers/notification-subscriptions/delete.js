@@ -1,0 +1,39 @@
+/*!
+ * Copyright (c) 2024 PLANKA Software GmbH
+ * Licensed under the Fair Use License: https://github.com/plankanban/planka/blob/master/LICENSE.md
+ */
+
+module.exports = {
+  inputs: {
+    id: {
+      type: 'string',
+      required: true,
+    },
+  },
+
+  async fn(inputs) {
+    const { currentUser } = this.req;
+
+    const subscription = await UserNotificationSubscription.findOne({
+      id: inputs.id,
+      userId: currentUser.id,
+    });
+
+    if (!subscription) {
+      throw 'notificationSubscriptionNotFound';
+    }
+
+    await UserNotificationSubscription.destroyOne({ id: inputs.id });
+
+    sails.log.info('[NotificationSubscriptions] Subscription deleted', {
+      subscriptionId: inputs.id,
+      userId: currentUser.id,
+    });
+
+    return {
+      item: {
+        id: subscription.id,
+      },
+    };
+  },
+};

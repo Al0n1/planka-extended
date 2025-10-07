@@ -12,11 +12,13 @@
 
 const { execFile } = require('child_process');
 const util = require('util');
+const notificationQueue = require('./notification-queue');
 
 const promisifyExecFile = util.promisify(execFile);
 
 class NotificationDeliveryService {
   constructor() {
+    // Legacy in-memory queue for backward compatibility
     this.deliveryQueue = [];
   }
 
@@ -31,22 +33,22 @@ class NotificationDeliveryService {
       boardId: event.boardId,
     });
 
-    // Add to queue
-    this.deliveryQueue.push({
-      event,
-      queuedAt: new Date(),
-      status: 'queued',
-    });
-
-    // Process immediately if worker is available
-    // Otherwise it will be picked up by the worker
-    if (global.notificationWorkerReady) {
-      setImmediate(() => this.processNext());
+    try {
+      // Add to Redis queue
+      await notificationQueue.add(event);
+    } catch (error) {
+      sails.log.error('[NotificationDeliveryService] Failed to queue event:', error);
+      // Fallback to in-memory queue
+      this.deliveryQueue.push({
+        event,
+        queuedAt: new Date(),
+        status: 'queued',
+      });
     }
   }
 
   /**
-   * Process next item in delivery queue
+   * Process next item in delivery queue (legacy method for backward compatibility)
    * @returns {Promise<void>}
    */
   async processNext() {
@@ -55,79 +57,204 @@ class NotificationDeliveryService {
     }
 
     const item = this.deliveryQueue.shift();
-    
+
     try {
-      await this.processEvent(item.event);
+      await this.dispatch(item.event);
     } catch (error) {
       sails.log.error('[NotificationDeliveryService] Failed to process event', error);
-      // Re-queue with retry logic could be added here
     }
   }
 
   /**
-   * Process a notification event
+   * Dispatch notification event to eligible subscribers
+   * Main entry point for notification delivery
    * @param {object} event - The notification event
-   * @returns {Promise<void>}
+   * @param {object} options - Additional options (jobId, retryCount)
+   * @returns {Promise<object>}
    */
-  async processEvent(event) {
-    sails.log.debug('[NotificationDeliveryService] Processing event', event.type);
+  async dispatch(event, options = {}) {
+    sails.log.debug('[NotificationDeliveryService] Dispatching event', {
+      type: event.type,
+      jobId: options.jobId,
+    });
 
-    // Get subscribers for this event
-    const subscribers = await this.getSubscribers(event);
+    const startTime = Date.now();
+    const result = {
+      eventType: event.type,
+      totalSubscribers: 0,
+      successful: 0,
+      failed: 0,
+      skipped: 0,
+      deliveries: [],
+    };
 
-    if (subscribers.length === 0) {
-      sails.log.debug('[NotificationDeliveryService] No subscribers found for event');
-      return;
+    try {
+      // Get eligible subscribers for this event
+      const subscribers = await this.getEligibleSubscribers(event);
+      result.totalSubscribers = subscribers.length;
+
+      if (subscribers.length === 0) {
+        sails.log.debug('[NotificationDeliveryService] No eligible subscribers found');
+        return result;
+      }
+
+      // Deliver to each subscriber
+      for (const subscriber of subscribers) {
+        try {
+          await this.deliverToSubscriber(event, subscriber, options);
+          result.successful += 1;
+          result.deliveries.push({
+            userId: subscriber.userId,
+            channelId: subscriber.channelId,
+            status: 'success',
+          });
+        } catch (error) {
+          result.failed += 1;
+          result.deliveries.push({
+            userId: subscriber.userId,
+            channelId: subscriber.channelId,
+            status: 'failed',
+            error: error.message,
+          });
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      sails.log.info('[NotificationDeliveryService] Event dispatched', {
+        eventType: event.type,
+        subscribers: result.totalSubscribers,
+        successful: result.successful,
+        failed: result.failed,
+        duration,
+      });
+
+      return result;
+    } catch (error) {
+      sails.log.error('[NotificationDeliveryService] Error dispatching event:', error);
+      throw error;
     }
-
-    // Get notification channels for subscribers
-    const deliveryPromises = subscribers.map((subscriber) =>
-      this.deliverToSubscriber(event, subscriber),
-    );
-
-    await Promise.allSettled(deliveryPromises);
   }
 
   /**
-   * Get subscribers for an event
+   * Get eligible subscribers for an event
+   * Filters based on subscriptions, channels, membership, and scope
    * @param {object} event - The notification event
    * @returns {Promise<Array>}
    */
-  async getSubscribers(event) {
-    // For now, maintain backward compatibility with existing NotificationService
-    // This will be enhanced in future iterations with UserNotificationSubscription
-    
-    const { boardId } = event;
-    
-    if (!boardId) {
+  async getEligibleSubscribers(event) {
+    const { type, boardId, projectId, actorId } = event;
+
+    sails.log.debug('[NotificationDeliveryService] Finding eligible subscribers', {
+      eventType: type,
+      boardId,
+      projectId,
+    });
+
+    // Get subscriptions for this event type
+    const subscriptions = await UserNotificationSubscription.find({
+      eventType: type,
+      isEnabled: true,
+      or: [
+        { boardId }, // Board-specific
+        { projectId }, // Project-specific
+        { boardId: null, projectId: null }, // Global
+      ],
+    });
+
+    if (subscriptions.length === 0) {
       return [];
     }
 
-    // Get legacy notification services
-    const notificationServices = await NotificationService.qm.getByBoardId(boardId);
+    const subscribers = [];
 
-    return notificationServices.map((service) => ({
-      channelId: service.id,
-      userId: service.userId,
-      serviceUrl: service.url,
-      format: service.format,
-      serviceType: 'apprise', // Legacy services use Apprise
-    }));
+    for (const subscription of subscriptions) {
+      // Skip if user is the actor (don't notify yourself)
+      if (subscription.userId === actorId) {
+        continue;
+      }
+
+      // Check membership
+      const isMember = await this.checkMembership(subscription.userId, boardId, projectId);
+      if (!isMember) {
+        continue;
+      }
+
+      // Get active channels for this user
+      const channels = await UserNotificationChannel.find({
+        userId: subscription.userId,
+        isActive: true,
+      });
+
+      if (channels.length === 0) {
+        continue;
+      }
+
+      // Add each channel as a separate subscriber
+      for (const channel of channels) {
+        subscribers.push({
+          userId: subscription.userId,
+          channelId: channel.id,
+          serviceUrl: channel.serviceUrl,
+          serviceType: channel.serviceType,
+          format: channel.format,
+        });
+      }
+    }
+
+    return subscribers;
+  }
+
+  /**
+   * Check if user is a member of the board or project
+   * @param {string} userId - User ID
+   * @param {string} boardId - Board ID
+   * @param {string} projectId - Project ID
+   * @returns {Promise<boolean>}
+   */
+  async checkMembership(userId, boardId, projectId) {
+    // Check board membership
+    if (boardId) {
+      const boardMembership = await BoardMembership.findOne({
+        userId,
+        boardId,
+      });
+
+      if (boardMembership) {
+        return true;
+      }
+    }
+
+    // Check project membership (managers)
+    if (projectId) {
+      const projectManager = await ProjectManager.findOne({
+        userId,
+        projectId,
+      });
+
+      if (projectManager) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
    * Deliver notification to a subscriber
    * @param {object} event - The notification event
    * @param {object} subscriber - Subscriber information with channel details
+   * @param {object} options - Delivery options (jobId, retryCount)
    * @returns {Promise<void>}
    */
-  async deliverToSubscriber(event, subscriber) {
+  async deliverToSubscriber(event, subscriber, options = {}) {
     const logEntry = {
       channelId: subscriber.channelId,
       eventType: event.type,
       status: 'pending',
       eventPayload: event,
       attemptCount: 1,
+      jobId: options.jobId || null,
+      retryCount: options.retryCount || 0,
     };
 
     try {
@@ -201,7 +328,15 @@ class NotificationDeliveryService {
       'card.created': t('Card Created'),
       'card.moved': t('Card Moved'),
       'card.updated': t('Card Updated'),
+      'card.deleted': t('Card Deleted'),
       'comment.created': t('Comment Added'),
+      'task.created': t('Task Created'),
+      'task.completed': t('Task Completed'),
+      'attachment.added': t('Attachment Added'),
+      'dueDate.approaching': t('Due Date Approaching'),
+      'dueDate.passed': t('Due Date Passed'),
+      'user.assigned': t('You Were Assigned'),
+      'user.unassigned': t('You Were Unassigned'),
     };
 
     return titleMap[eventType] || t('Notification');
@@ -275,6 +410,128 @@ class NotificationDeliveryService {
             `<b>${escapeHtml(fromListName)}</b>`,
             `<b>${escapeHtml(toListName)}</b>`,
             escapeHtml(board.name),
+          ),
+        };
+      }
+      case 'comment.created': {
+        const commentText = payload.commentText
+          ? payload.commentText.substring(0, 100)
+          : '';
+        return {
+          text: t('%s commented on %s: %s', actor.name, card.name, commentText),
+          markdown: t(
+            '%s commented on %s: %s',
+            escapeMarkdown(actor.name),
+            markdownCardLink,
+            escapeMarkdown(commentText),
+          ),
+          html: t(
+            '%s commented on %s: %s',
+            escapeHtml(actor.name),
+            htmlCardLink,
+            escapeHtml(commentText),
+          ),
+        };
+      }
+      case 'user.assigned': {
+        return {
+          text: t('%s assigned you to %s on %s', actor.name, card.name, board.name),
+          markdown: t(
+            '%s assigned you to %s on %s',
+            escapeMarkdown(actor.name),
+            markdownCardLink,
+            escapeMarkdown(board.name),
+          ),
+          html: t(
+            '%s assigned you to %s on %s',
+            escapeHtml(actor.name),
+            htmlCardLink,
+            escapeHtml(board.name),
+          ),
+        };
+      }
+      case 'dueDate.approaching': {
+        const dueDate = payload.dueDate || 'soon';
+        return {
+          text: t('Due date approaching for %s: %s', card.name, dueDate),
+          markdown: t(
+            'Due date approaching for %s: %s',
+            markdownCardLink,
+            escapeMarkdown(dueDate),
+          ),
+          html: t(
+            'Due date approaching for %s: %s',
+            htmlCardLink,
+            escapeHtml(dueDate),
+          ),
+        };
+      }
+      case 'dueDate.passed': {
+        return {
+          text: t('Due date passed for %s on %s', card.name, board.name),
+          markdown: t(
+            'Due date passed for %s on %s',
+            markdownCardLink,
+            escapeMarkdown(board.name),
+          ),
+          html: t(
+            'Due date passed for %s on %s',
+            htmlCardLink,
+            escapeHtml(board.name),
+          ),
+        };
+      }
+      case 'task.created': {
+        const taskName = payload.taskName || 'New task';
+        return {
+          text: t('%s added task "%s" to %s', actor.name, taskName, card.name),
+          markdown: t(
+            '%s added task "%s" to %s',
+            escapeMarkdown(actor.name),
+            escapeMarkdown(taskName),
+            markdownCardLink,
+          ),
+          html: t(
+            '%s added task "%s" to %s',
+            escapeHtml(actor.name),
+            escapeHtml(taskName),
+            htmlCardLink,
+          ),
+        };
+      }
+      case 'task.completed': {
+        const taskName = payload.taskName || 'Task';
+        return {
+          text: t('%s completed task "%s" on %s', actor.name, taskName, card.name),
+          markdown: t(
+            '%s completed task "%s" on %s',
+            escapeMarkdown(actor.name),
+            escapeMarkdown(taskName),
+            markdownCardLink,
+          ),
+          html: t(
+            '%s completed task "%s" on %s',
+            escapeHtml(actor.name),
+            escapeHtml(taskName),
+            htmlCardLink,
+          ),
+        };
+      }
+      case 'attachment.added': {
+        const fileName = payload.fileName || 'file';
+        return {
+          text: t('%s added attachment "%s" to %s', actor.name, fileName, card.name),
+          markdown: t(
+            '%s added attachment "%s" to %s',
+            escapeMarkdown(actor.name),
+            escapeMarkdown(fileName),
+            markdownCardLink,
+          ),
+          html: t(
+            '%s added attachment "%s" to %s',
+            escapeHtml(actor.name),
+            escapeHtml(fileName),
+            htmlCardLink,
           ),
         };
       }

@@ -53,6 +53,11 @@ module.exports = {
       type: 'boolean',
       defaultsTo: true,
     },
+    scopeType: {
+      type: 'string',
+      isIn: ['board', 'project', 'global'],
+      defaultsTo: 'board',
+    },
 
     //  ╔═╗╔╦╗╔╗ ╔═╗╔╦╗╔═╗
     //  ║╣ ║║║╠╩╗║╣  ║║╚═╗

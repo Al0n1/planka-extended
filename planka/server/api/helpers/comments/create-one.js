@@ -79,6 +79,21 @@ module.exports = {
       inputs.request,
     );
 
+    // Emit notification event for extended notification system
+    const NotificationEventBus = require('../../services/NotificationEventBus');
+    await NotificationEventBus.emitNotificationEvent('comment.created', {
+      actorId: values.user.id,
+      boardId: inputs.board.id,
+      cardId: values.card.id,
+      commentId: comment.id,
+      payload: {
+        commentText: comment.text,
+        cardName: values.card.name,
+      },
+    }).catch((error) => {
+      sails.log.error('[comments/create-one] Failed to emit notification event:', error);
+    });
+
     const webhooks = await Webhook.qm.getAll();
 
     sails.helpers.utils.sendWebhooks.with({

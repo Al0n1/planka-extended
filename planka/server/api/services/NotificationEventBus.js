@@ -60,11 +60,21 @@ class NotificationEventBus extends EventEmitter {
    * @returns {Promise<void>}
    */
   async queueEvent(event) {
-    // Queue the event for worker processing
+    // Try to use Redis queue first
+    if (sails.notificationQueue) {
+      try {
+        await sails.notificationQueue.add(event);
+        return;
+      } catch (error) {
+        sails.log.error('[NotificationEventBus] Failed to queue to Redis, falling back:', error);
+      }
+    }
+
+    // Fallback to delivery service queue
     if (sails.helpers.notifications && sails.helpers.notifications.queueDelivery) {
       await sails.helpers.notifications.queueDelivery(event);
     } else {
-      // Fallback: store in memory queue if worker not ready
+      // Last resort: store in memory queue
       sails.log.warn(
         '[NotificationEventBus] Notification worker not available, using memory queue',
       );

@@ -7,45 +7,161 @@
  * notification-worker.js
  *
  * @description :: Worker process for handling notification delivery queue
- *                 Runs continuously to process queued notification events
+ *                 Uses BullMQ to process Redis-backed persistent queue
  */
 
+const { Worker } = require('bullmq');
+const Redis = require('ioredis');
 const NotificationDeliveryService = require('../api/services/NotificationDeliveryService');
 
 class NotificationWorker {
   constructor() {
+    this.worker = null;
+    this.connection = null;
     this.isRunning = false;
-    this.processingInterval = null;
-    this.intervalMs = 5000; // Process queue every 5 seconds
+    this.concurrency = parseInt(process.env.QUEUE_CONCURRENCY, 10) || 5;
   }
 
   /**
    * Start the worker
    */
-  start() {
+  async start() {
     if (this.isRunning) {
       sails.log.warn('[NotificationWorker] Worker already running');
       return;
     }
 
-    this.isRunning = true;
-    global.notificationWorkerReady = true;
+    try {
+      // Get Redis configuration
+      const redisUrl =
+        sails.config.custom.notificationRedisUrl ||
+        process.env.NOTIFICATION_REDIS_URL ||
+        process.env.REDIS_URL ||
+        'redis://localhost:6379';
 
-    sails.log.info('[NotificationWorker] Starting notification worker');
+      sails.log.info('[NotificationWorker] Connecting to Redis:', redisUrl.replace(/:[^:@]+@/, ':***@'));
 
-    // Process queue periodically
-    this.processingInterval = setInterval(() => {
-      this.processQueue();
-    }, this.intervalMs);
+      // Create Redis connection for worker
+      this.connection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        retryStrategy: (times) => {
+          const delay = Math.min(times * 50, 2000);
+          return delay;
+        },
+      });
 
-    // Initial processing
-    this.processQueue();
+      // Create BullMQ worker
+      this.worker = new Worker(
+        'notifications',
+        async (job) => {
+          return this.processJob(job);
+        },
+        {
+          connection: this.connection,
+          concurrency: this.concurrency,
+          limiter: {
+            max: 10, // Max 10 jobs
+            duration: 1000, // per second
+          },
+        },
+      );
+
+      // Worker event handlers
+      this.worker.on('completed', (job, result) => {
+        sails.log.debug('[NotificationWorker] Job completed', {
+          jobId: job.id,
+          eventType: job.data.event.type,
+          result,
+        });
+      });
+
+      this.worker.on('failed', async (job, error) => {
+        sails.log.error('[NotificationWorker] Job failed', {
+          jobId: job.id,
+          eventType: job?.data?.event?.type,
+          error: error.message,
+          attemptsMade: job?.attemptsMade,
+          attemptsMax: job?.opts?.attempts,
+        });
+
+        // Log to database
+        if (job?.data?.event) {
+          await this.logFailure(job, error);
+        }
+      });
+
+      this.worker.on('error', (error) => {
+        sails.log.error('[NotificationWorker] Worker error:', error);
+      });
+
+      this.isRunning = true;
+      global.notificationWorkerReady = true;
+
+      sails.log.info('[NotificationWorker] Worker started', {
+        concurrency: this.concurrency,
+      });
+    } catch (error) {
+      sails.log.error('[NotificationWorker] Failed to start worker:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process a job from the queue
+   * @param {object} job - BullMQ job
+   * @returns {Promise<object>}
+   */
+  async processJob(job) {
+    const { event } = job.data;
+
+    sails.log.debug('[NotificationWorker] Processing job', {
+      jobId: job.id,
+      eventType: event.type,
+      attemptsMade: job.attemptsMade,
+    });
+
+    try {
+      // Process the event through NotificationDeliveryService
+      const result = await NotificationDeliveryService.dispatch(event, {
+        jobId: job.id,
+        retryCount: job.attemptsMade,
+      });
+
+      return result;
+    } catch (error) {
+      sails.log.error('[NotificationWorker] Error processing job', {
+        jobId: job.id,
+        error: error.message,
+      });
+      throw error; // Re-throw to trigger BullMQ retry
+    }
+  }
+
+  /**
+   * Log job failure to database
+   * @param {object} job - BullMQ job
+   * @param {Error} error - Error that caused failure
+   */
+  async logFailure(job, error) {
+    try {
+      await NotificationDeliveryLog.create({
+        eventType: job.data.event.type,
+        status: 'failed',
+        errorMessage: error.message,
+        eventPayload: job.data.event,
+        attemptCount: job.attemptsMade,
+        jobId: job.id,
+      });
+    } catch (logError) {
+      sails.log.error('[NotificationWorker] Failed to log failure:', logError);
+    }
   }
 
   /**
    * Stop the worker
    */
-  stop() {
+  async stop() {
     if (!this.isRunning) {
       return;
     }
@@ -55,47 +171,21 @@ class NotificationWorker {
     this.isRunning = false;
     global.notificationWorkerReady = false;
 
-    if (this.processingInterval) {
-      clearInterval(this.processingInterval);
-      this.processingInterval = null;
-    }
-  }
-
-  /**
-   * Process the notification queue
-   */
-  async processQueue() {
-    if (!this.isRunning) {
-      return;
-    }
-
     try {
-      const status = NotificationDeliveryService.getQueueStatus();
-
-      if (status.queueLength > 0) {
-        sails.log.debug('[NotificationWorker] Processing queue', {
-          queueLength: status.queueLength,
-        });
-
-        // Process items one by one
-        while (status.queueLength > 0 && this.isRunning) {
-          await NotificationDeliveryService.processNext();
-          // Small delay between items to prevent overwhelming the system
-          await this.sleep(100);
-        }
+      if (this.worker) {
+        await this.worker.close();
+        this.worker = null;
       }
-    } catch (error) {
-      sails.log.error('[NotificationWorker] Error processing queue', error);
-    }
-  }
 
-  /**
-   * Sleep helper
-   * @param {number} ms - Milliseconds to sleep
-   * @returns {Promise<void>}
-   */
-  sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+      if (this.connection) {
+        await this.connection.quit();
+        this.connection = null;
+      }
+
+      sails.log.info('[NotificationWorker] Worker stopped');
+    } catch (error) {
+      sails.log.error('[NotificationWorker] Error stopping worker:', error);
+    }
   }
 
   /**
@@ -105,8 +195,28 @@ class NotificationWorker {
   getStatus() {
     return {
       isRunning: this.isRunning,
-      queueStatus: NotificationDeliveryService.getQueueStatus(),
+      concurrency: this.concurrency,
     };
+  }
+
+  /**
+   * Pause the worker
+   */
+  async pause() {
+    if (this.worker) {
+      await this.worker.pause();
+      sails.log.info('[NotificationWorker] Worker paused');
+    }
+  }
+
+  /**
+   * Resume the worker
+   */
+  async resume() {
+    if (this.worker) {
+      await this.worker.resume();
+      sails.log.info('[NotificationWorker] Worker resumed');
+    }
   }
 }
 

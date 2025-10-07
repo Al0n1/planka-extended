@@ -47,6 +47,14 @@ module.exports = {
       type: 'number',
       defaultsTo: 1,
     },
+    jobId: {
+      type: 'string',
+      allowNull: true,
+    },
+    retryCount: {
+      type: 'number',
+      defaultsTo: 0,
+    },
 
     //  ╔═╗╔╦╗╔╗ ╔═╗╔╦╗╔═╗
     //  ║╣ ║║║╠╩╗║╣  ║║╚═╗
