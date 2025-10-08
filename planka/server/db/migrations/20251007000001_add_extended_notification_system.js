@@ -8,7 +8,7 @@ exports.up = (knex) =>
     .createTable('user_notification_channel', (table) => {
       /* Columns */
 
-      table.bigInteger('id').primary().defaultTo(knex.raw("next_id('user_notification_channel_id_seq'::regclass)"));
+      table.bigInteger('id').primary().defaultTo(knex.raw('next_id()'));
       table.bigInteger('user_id').notNullable();
       table.text('service_type').notNullable().defaultTo('apprise');
       table.text('service_url').notNullable();
@@ -24,7 +24,7 @@ exports.up = (knex) =>
     .createTable('user_notification_subscription', (table) => {
       /* Columns */
 
-      table.bigInteger('id').primary().defaultTo(knex.raw("next_id('user_notification_subscription_id_seq'::regclass)"));
+      table.bigInteger('id').primary().defaultTo(knex.raw('next_id()'));
       table.bigInteger('user_id').notNullable();
       table.bigInteger('project_id');
       table.bigInteger('board_id');
@@ -43,7 +43,7 @@ exports.up = (knex) =>
     .createTable('notification_delivery_log', (table) => {
       /* Columns */
 
-      table.bigInteger('id').primary().defaultTo(knex.raw("next_id('notification_delivery_log_id_seq'::regclass)"));
+      table.bigInteger('id').primary().defaultTo(knex.raw('next_id()'));
       table.bigInteger('channel_id');
       table.text('event_type').notNullable();
       table.text('status').notNullable();

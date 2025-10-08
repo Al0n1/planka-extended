@@ -15,6 +15,7 @@ services:
       - BASE_URL=http://localhost:1337
       - DATABASE_URL=postgresql://postgres@postgres/planka
       - SECRET_KEY=notsecretkey
+      - REDIS_URL=redis://redis:6379
 
       # - LOG_LEVEL=warn
 
@@ -34,10 +35,10 @@ services:
       # - DEFAULT_LANGUAGE=en-US
 
       # Do not comment out DEFAULT_ADMIN_EMAIL if you want to prevent this user from being edited/deleted
-      # - DEFAULT_ADMIN_EMAIL=demo@demo.demo
-      # - DEFAULT_ADMIN_PASSWORD=demo
-      # - DEFAULT_ADMIN_NAME=Demo Demo
-      # - DEFAULT_ADMIN_USERNAME=demo
+      - DEFAULT_ADMIN_EMAIL=demo@demo.demo
+      - DEFAULT_ADMIN_PASSWORD=demo
+      - DEFAULT_ADMIN_NAME=Demo Demo
+      - DEFAULT_ADMIN_USERNAME=demo
 
       # - INTERNAL_ACCESS_TOKEN=
       # - STORAGE_LIMIT=
@@ -122,5 +123,19 @@ services:
       retries: 15
       start_period: 10s
 
+  redis:
+    image: redis:7-alpine
+    restart: on-failure
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
 volumes:
   db-data:
+  redis-data:

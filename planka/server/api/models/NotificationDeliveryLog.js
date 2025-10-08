@@ -66,7 +66,6 @@ module.exports = {
 
     channelId: {
       model: 'UserNotificationChannel',
-      allowNull: true,
       columnName: 'channel_id',
     },
   },

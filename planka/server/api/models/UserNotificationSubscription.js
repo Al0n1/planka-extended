@@ -16,21 +16,21 @@ const EventTypes = {
   CARD_MOVED: 'card.moved',
   CARD_UPDATED: 'card.updated',
   CARD_DELETED: 'card.deleted',
-  
+
   // Comment events
   COMMENT_CREATED: 'comment.created',
-  
+
   // Task events
   TASK_CREATED: 'task.created',
   TASK_COMPLETED: 'task.completed',
-  
+
   // Attachment events
   ATTACHMENT_ADDED: 'attachment.added',
-  
+
   // Due date events
   DUE_DATE_APPROACHING: 'dueDate.approaching',
   DUE_DATE_PASSED: 'dueDate.passed',
-  
+
   // Assignment events
   USER_ASSIGNED: 'user.assigned',
   USER_UNASSIGNED: 'user.unassigned',
@@ -74,12 +74,10 @@ module.exports = {
     },
     projectId: {
       model: 'Project',
-      allowNull: true,
       columnName: 'project_id',
     },
     boardId: {
       model: 'Board',
-      allowNull: true,
       columnName: 'board_id',
     },
   },

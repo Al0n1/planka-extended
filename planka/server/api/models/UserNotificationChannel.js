@@ -35,7 +35,6 @@ module.exports = {
       type: 'string',
       isIn: Object.values(ServiceTypes),
       defaultsTo: ServiceTypes.APPRISE,
-      required: true,
     },
     serviceUrl: {
       type: 'string',
@@ -46,7 +45,6 @@ module.exports = {
       type: 'string',
       isIn: Object.values(Formats),
       defaultsTo: Formats.MARKDOWN,
-      required: true,
     },
     isActive: {
       type: 'boolean',
